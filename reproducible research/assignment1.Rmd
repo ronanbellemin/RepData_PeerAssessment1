@@ -1,0 +1,160 @@
+---
+title: "Assignment coursera"
+author: "bellemin ronan"
+date: "10/17/2021"
+output: html_document
+---
+
+# Assignment
+
+## Loading and preprocessing the data
+
+Loading packages
+```{r, echo=TRUE}
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+library(cowplot)
+```
+
+Loading the dataset and dealing with NAs
+```{r, echo=TRUE}
+dataset <- read_csv("activity.csv")
+dataset <- drop_na(dataset)
+```
+
+## What is mean total number of steps taken per day?
+
+Calculating the mean of steps per day
+```{r, echo=TRUE}
+print(mean_day <- dataset %>% 
+  group_by(date) %>% 
+  summarise(mean_steps = mean(steps)))
+```
+
+Histogram of the total number of steps taken each day
+```{r, echo=TRUE}
+cum_steps_df <- dataset %>% 
+  group_by(date) %>% 
+  summarise(cum_steps = cumsum(steps))
+
+total_steps_per_day_df <- cum_steps_df %>% 
+  group_by(date) %>% 
+  summarise(total_steps = max(cum_steps))
+
+ggplot(data = total_steps_per_day_df) +
+  geom_histogram(aes(total_steps), col = "black", fill = "brown")
+```
+
+Mean and median of the total number of steps per day
+```{r, echo=TRUE}
+print(mean(total_steps_per_day_df$total_steps, na.rm = TRUE))
+
+print(median(total_steps_per_day_df$total_steps, na.rm = TRUE))
+```
+
+## What is the average daily activity pattern?
+
+Time serie plot of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
+```{r, echo = TRUE}
+unique_interval <- dataset %>% 
+  group_by(interval) %>% 
+  summarise(mean_steps = mean(steps))
+
+ggplot(unique_interval)+
+  geom_line(aes(interval, mean_steps), col = "blue")
+```
+
+To see which 5-min interval contains the most averaged steps, I'm going to look in the table and look around the 800th interval the one that is more than 200 steps away.
+It is the 835th 5-min interval.
+
+## Imputing missing values
+
+Reloading original dataset 
+```{r, echo=TRUE}
+dataset <- read_csv("activity.csv")
+```
+
+The total number of Nas in the original dataset
+```{r, echo=TRUE}
+sum(is.na(dataset))
+```
+
+Computing NAs as the mean for that 5-minute interval
+```{r, echo=TRUE}
+dataset <- dataset %>% 
+  left_join(unique_interval, by = "interval")
+
+dataset$steps <- ifelse(is.na(dataset$steps), dataset$mean_steps, dataset$steps)
+```
+
+Creating a new dataset same as the original but with NAs filled in
+```{r, echo=TRUE}
+new_dataset <- dataset
+```
+
+Histogram + mean + median total number of steps taken per day
+```{r, echo=TRUE}
+cum_steps_df_2 <- new_dataset %>% 
+  group_by(date) %>% 
+  summarise(cum_steps = cumsum(steps))
+
+total_steps_per_day_df_2 <- cum_steps_df_2 %>% 
+  group_by(date) %>% 
+  summarise(total_steps = max(cum_steps))
+
+ggplot(data = total_steps_per_day_df_2) +
+  geom_histogram(aes(total_steps), col = "black", fill = "brown")
+```
+
+Calculating the mean and median
+```{r, echo=TRUE}
+print(mean(total_steps_per_day_df_2$total_steps, na.rm = TRUE))
+
+print(median(total_steps_per_day_df_2$total_steps, na.rm = TRUE))
+```
+
+So it seems that imputing NAs as the mean for that 5-minute interval does not have a large impact on the estimates. Indeed, the estimates are still the same, except for the median which has a little bit increased after imputing data.
+
+## Are there differences in activity patterns between weekdays and weekends?
+
+Creating a new factor variable with either weekday or weekend
+```{r, echo=TRUE}
+print(new_dataset<- new_dataset %>% 
+  mutate(weekday = case_when(
+    weekdays(date) %in% c("Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi") ~ "weekday",
+    weekdays(date) %in% c("Samedi", "Dimanche") ~ "weekend"
+  )))
+```
+Making a panel plot containing a time series plot of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis)
+```{r, echo=TRUE}
+#seperate in 2 dataframes: one with only weekend and aonther one with weekdays
+only_weekend <- filter(new_dataset, weekday == "weekend")
+only_weekday <- filter(new_dataset, weekday == "weekday")
+
+#for weekdays
+panel_plot_df_1 <- only_weekday %>% 
+  group_by(interval) %>% 
+  summarise(mean_steps_weekday = mean(steps))
+
+#for weekends
+panel_plot_df_2 <- only_weekend %>% 
+  group_by(interval) %>% 
+  summarise(mean_steps_weekend = mean(steps))
+
+#combine dataframes
+final_df<- cbind(panel_plot_df_1, panel_plot_df_2)
+final_df <- final_df %>% 
+  select(-3)
+
+#create plot
+weekday_plot<- ggplot(final_df)+
+  geom_line(aes(interval, mean_steps_weekday), col = "blue")
+
+weekend_plot <- ggplot(final_df)+
+  geom_line(aes(interval, mean_steps_weekend), col = "blue")
+
+plot_grid(weekday_plot, weekend_plot)
+```
+
+
